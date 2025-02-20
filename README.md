@@ -13,11 +13,15 @@ GitHub Actions에 워크플로우를 작성해 다음과 같이 배포가 진행
 5. 빌드된 파일을 S3 버킷에 동기화
 6. CloudFront 캐시 무효화
 
+<br />
+
 ## 주요 링크
 
 S3 버킷 웹사이트 엔드포인트: [http://hanghae-s3-song.s3-website-us-east-1.amazonaws.com/](http://hanghae-s3-song.s3-website-us-east-1.amazonaws.com/)
 
 CloudFront 배포 도메인 이름: [https://d1vf9srvbxwqle.cloudfront.net/](https://d1vf9srvbxwqle.cloudfront.net/)
+
+<br />
 
 ## 주요 개념
 
@@ -62,3 +66,38 @@ GitHub Actions에서 배포할 때 AWS 자격 증명(AWS Access Key, Secret Key)
 - GitHub의 secrets 기능을 사용하면, 배포 스크립트 내에서만 환경변수로 사용 가능하며, 저장소에서 직접 확인할 수 없습니다.
 - 배포에 필요한 정보를 코드에서 직접 수정할 필요 없이, GitHub Secrets에서 변경할 수 있습니다.
 - 개발(Dev), 스테이징(Staging), 운영(Production) 환경마다 다른 AWS 자격 증명, S3_BUCKET_NAME,CLOUDFRONT_DISTRIBUTION_ID등을 사용할 수 있습니다.
+
+<br />
+
+# CDN과 성능최적화
+
+### CDN(CloudFront)을 사용했을 때 이점
+
+- S3는 특정 리전에 파일을 저장하기 때문에 사용자가 해당 리전에 직접 요청해야 합니다. 예를 들어 해당 리전이 미국에 있다면 한국에서 미국까지의 거리만큼 지연시간이 생길 수 있습니다 **CDN(CloudFront)** 을 사용하면 엣지 로케이션을 활용하기 때문에 사용자와 가장 가까운 서버에서 콘텐츠를 제공하여 지연 시간을 감소 시킬 수 있습니다.
+
+- **CDN(CloudFront)** 는 요청 한 정적 파일에 대해 캐싱을 적용하여 반복 요청을 줄여주고 페이지 로딩 속도가 빨라집니다.
+
+- CloudFront는 자동으로 Brotli 압축을 적용하는데 이는 컨텐츠를 작게 압축하여 데이터 전송량이 줄어들게 해주기 때문에 페이지 로딩 속도가 개선됩니다. 현재 프로젝트에도 Brotli 압축 방식이 적용되어 있습니다.
+  - Response Header에서 `content-encoding: br` Brotli을 이용한 압축이 적용되어 있는 걸 확인 할 수 있습니다
+
+<br />
+
+### CDN(CloudFront) 적용 하기 전 S3로만 배포 된 웹의 네트워크 탭
+
+<img width="1431" alt="Image" src="https://github.com/user-attachments/assets/ef8c36bb-168e-4212-9fce-a41c0e3d7603" />
+
+### CloudFront
+
+<img width="1403" alt="Image" src="https://github.com/user-attachments/assets/777f8c55-1aa1-4f49-a88c-a6167d1c61f8" />
+
+<br />
+
+### 네트워크 탭에서 확인 한 개선 사항
+
+| **항목**                             | **S3** | **CDN (CloudFront)** | **개선된 부분**                                                         |
+| ------------------------------------ | ------ | -------------------- | ----------------------------------------------------------------------- |
+| **Transferred (전송된 크기)**        | 1.2MB  | 931KB                | 콘텐츠를 압축하고 캐싱을 사용하여 전송 데이터 크기가 감소했습니다.      |
+| **Resource Size (리소스 크기)**      | 1.2MB  | 1.2MB                | 동일 (리소스 크기는 변하지 않습니다.)                                   |
+| **Finish (페이지 로드 완료)**        | 8.14s  | 7.13s                | 가까운 엣지 서버 사용으로 페이지 로드 시간이 단축되었습니다. 약 1s 개선 |
+| **DOMContentLoaded (DOM 로드 완료)** | 792ms  | 528ms                | 캐시된 콘텐츠 제공으로 DOM 로드 속도가 개선되었습니다. 264ms 개선       |
+| **Load (전체 페이지 로드)**          | 2.28s  | 1.09s                | 캐싱과 엣지 로케이션으로 페이지 로드 속도가 단축되었습니다. 1.19s 개선  |
